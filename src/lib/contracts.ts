@@ -4,6 +4,12 @@
 // This file is the SINGLE SOURCE OF TRUTH for API shapes.
 // Both Person A (backend) and Person B (frontend) import from here.
 // If you change a shape, update the types AND the mock data.
+//
+// PERSON B / CLAUDE: The backend uses Claude via OpenRouter to
+// analyze claims. The chat stream (/api/chat) is the live
+// investigation. The structured report below is saved to MongoDB
+// and returned via /api/report. Render REQUIRED fields always.
+// Render OPTIONAL fields if present (they may be added over time).
 // ============================================================
 
 // -----------------------------------------------------------
@@ -62,93 +68,166 @@ Our proprietary **NeuralCore Engine** outperforms GPT-4 on all standard benchmar
 };
 
 // -----------------------------------------------------------
-// /api/chat (BS Detection Agent)
+// /api/chat (BS Detection Agent - Streaming)
 // -----------------------------------------------------------
-// Uses Vercel AI SDK useChat - streaming response
-// The initial message should include the parsed markdown
-// The agent responds with a structured BS report, then
-// the user can ask follow-up questions in the same chat.
+// Uses Vercel AI SDK useChat - streaming response.
+// The initial message should include the parsed markdown.
+// The agent responds with its investigation in real time,
+// then the user can ask follow-up questions.
+//
+// PERSON B: The chat stream is for the LIVE investigation view.
+// Show the agent thinking/searching as it happens. The final
+// structured report is a SEPARATE thing - see BSReport below.
 //
 // First message format (sent by frontend):
 // "Analyze this for BS:\n\n{markdown}"
 //
-// The agent's first response will be the full BS report.
-// Subsequent messages are conversational follow-ups.
+// POST body also accepts optional fields:
+// { messages, url?, sourceType?, inputMarkdown? }
+// These get saved to MongoDB alongside the report.
 // -----------------------------------------------------------
 
-// This is what the agent's first message looks like (as text content).
-// The frontend should parse sections to render them nicely.
-export const mockBSReport = `## Overall Assessment
+// -----------------------------------------------------------
+// /api/report?url=... (Cached Report Lookup)
+// -----------------------------------------------------------
+// GET endpoint. Returns { found: false } or { found: true, report: BSReport }
+// Use this to check if a URL has already been analyzed.
+// -----------------------------------------------------------
 
-This landing page contains several claims that range from plausible to highly suspicious. The company appears to be real and has raised funding, but multiple key metrics are either significantly inflated or completely unverifiable. The overall picture is of a company stretching the truth to appear 10x bigger than it actually is.
+// -----------------------------------------------------------
+// STRUCTURED REPORT
+// -----------------------------------------------------------
+// PERSON B / CLAUDE: This is the structured report that the
+// backend parses from the agent's output and saves to MongoDB.
+//
+// REQUIRED fields are ALWAYS present. Build your UI around these.
+// OPTIONAL fields may or may not be present - render them if
+// they exist, skip gracefully if they don't. Person A will be
+// experimenting with adding more optional fields over time.
+// -----------------------------------------------------------
 
-## Claims Analysis
+/** A single claim that was investigated */
+export interface Claim {
+  // --- REQUIRED: Always present, build your UI around these ---
+  claim: string;              // The original claim text (e.g. "$100M ARR")
+  verdict: string;            // Plain English verdict (e.g. "Highly suspicious", "Checks out", "False")
 
-### "$100M ARR as of Q3 2025"
-**Verdict: Highly suspicious**
-Acme AI raised $105M total. For a company founded in 2022 with a Series B in 2024, $100M ARR would make them one of the fastest-growing enterprise SaaS companies in history. No press coverage, no mention in any "fastest growing" lists, no Glassdoor reviews suggesting a company of that scale. Their LinkedIn shows 47 employees - a company doing $100M ARR typically has 300-500+ employees. This number appears to be fabricated or refers to something other than actual recurring revenue.
-**Sources:** [LinkedIn](https://linkedin.com/company/acme-ai), [Crunchbase](https://crunchbase.com/organization/acme-ai)
+  // --- OPTIONAL: Render if present, skip if not ---
+  analysis?: string;          // Detailed explanation of what was found
+  sources?: string[];         // URLs of evidence used
+}
 
-### "10,000+ enterprise customers"
-**Verdict: Almost certainly false**
-10,000 enterprise customers would make them larger than most public SaaS companies. Their G2 page shows 12 reviews. Their case studies page lists 3 companies. No job postings for customer success or account management at that scale. This claim contradicts everything else publicly available.
-**Sources:** [G2 Reviews](https://g2.com/products/acme-ai), [Careers Page](https://acme-ai.example.com/careers)
+/** The full structured BS report */
+export interface BSReport {
+  // --- REQUIRED: Always present ---
+  overallAssessment: string;  // 2-3 paragraph natural language summary
+  claims: Claim[];            // Array of investigated claims with verdicts
+  checksOut: string[];        // Bullet list of things that appear legitimate
+  redFlags: string[];         // Ordered list of most concerning findings
 
-### "50M+ API calls per day"
-**Verdict: Unverifiable**
-No public evidence exists to confirm or deny this. No status page, no public API metrics, no third-party benchmarks. When a company makes a specific technical claim with zero public footprint, treat it with skepticism.
+  // --- OPTIONAL: May be added later ---
+  rawMarkdown?: string;       // The full agent output as raw markdown (fallback rendering)
+}
 
-### "CEO: Jane Smith - Former VP of Engineering at Google"
-**Verdict: Partially true, inflated**
-Jane Smith did work at Google, but as a Senior Software Engineer from 2018-2021, not as VP of Engineering. Her LinkedIn confirms a Stanford CS degree but shows a Master's, not a PhD.
-**Sources:** [LinkedIn](https://linkedin.com/in/janesmith)
-
-### "NeuralCore Engine outperforms GPT-4 on all standard benchmarks by 40%"
-**Verdict: Almost certainly false**
-No published benchmarks, no papers, no third-party evaluations. A 40% improvement over GPT-4 across ALL benchmarks would be front-page news in the AI community. This claim is extraordinary and has zero supporting evidence.
-
-### "Series B: $80M led by Sequoia Capital"
-**Verdict: Partially true**
-Crunchbase shows a $45M Series B with Sequoia participating but not leading. The round was led by Index Ventures. The amount is inflated by nearly 2x.
-**Sources:** [Crunchbase](https://crunchbase.com/organization/acme-ai)
-
-### "Official technology partner of Microsoft, AWS, and Google Cloud"
-**Verdict: Misleading**
-They appear in the AWS Marketplace as a listed product, which any company can do. No evidence of official partnership programs with Microsoft or Google Cloud. Being listed on a marketplace is not a "technology partnership."
-**Sources:** [AWS Marketplace](https://aws.amazon.com/marketplace)
-
-### "Winner of the 2025 Gartner Cool Vendor Award"
-**Verdict: False**
-The 2025 Gartner Cool Vendor reports are publicly indexed. Acme AI does not appear in any of them. This award appears to be fabricated.
-**Sources:** [Gartner](https://gartner.com/en/research/methodologies/cool-vendors)
-
-### "400% YoY growth"
-**Verdict: Unverifiable, suspicious in context**
-Given that other metrics appear inflated, this growth figure should be treated skeptically. No external data to confirm. Could be technically true if they grew from a very small base, but presented to imply massive scale.
-
-### Testimonials
-**Verdict: Unverifiable**
-Anonymous testimonials from "Fortune 100 Company" and "Major Bank" with no names attached. These could be real, fabricated, or heavily editorialized. Legitimate companies typically name their reference customers.
-
-## What Checks Out
-- The company exists and has raised real funding (though amounts are inflated)
-- The founding team has legitimate tech backgrounds (though titles are inflated)
-- They have a real product listed on AWS Marketplace
-
-## Top Red Flags
-1. Revenue claim ($100M ARR) contradicted by team size (47 people on LinkedIn)
-2. Customer count (10,000) contradicted by review count (12 on G2)
-3. Fabricated award (Gartner Cool Vendor)
-4. Inflated funding numbers (nearly 2x actual)
-5. Benchmark claims (40% better than GPT-4) with zero evidence
-`;
+export const mockBSReport: BSReport = {
+  overallAssessment:
+    "This landing page contains several claims that range from plausible to highly suspicious. The company appears to be real and has raised funding, but multiple key metrics are either significantly inflated or completely unverifiable. The overall picture is of a company stretching the truth to appear 10x bigger than it actually is.",
+  claims: [
+    {
+      claim: "$100M ARR as of Q3 2025",
+      verdict: "Highly suspicious",
+      analysis:
+        "Acme AI raised $105M total. For a company founded in 2022 with a Series B in 2024, $100M ARR would make them one of the fastest-growing enterprise SaaS companies in history. Their LinkedIn shows 47 employees — a company doing $100M ARR typically has 300-500+.",
+      sources: [
+        "https://linkedin.com/company/acme-ai",
+        "https://crunchbase.com/organization/acme-ai",
+      ],
+    },
+    {
+      claim: "10,000+ enterprise customers",
+      verdict: "Almost certainly false",
+      analysis:
+        "10,000 enterprise customers would make them larger than most public SaaS companies. Their G2 page shows 12 reviews. Their case studies page lists 3 companies.",
+      sources: [
+        "https://g2.com/products/acme-ai",
+        "https://acme-ai.example.com/careers",
+      ],
+    },
+    {
+      claim: "50M+ API calls per day",
+      verdict: "Unverifiable",
+      analysis:
+        "No public evidence exists to confirm or deny this. No status page, no public API metrics, no third-party benchmarks.",
+    },
+    {
+      claim: "CEO: Jane Smith - Former VP of Engineering at Google, Stanford CS PhD",
+      verdict: "Partially true, inflated",
+      analysis:
+        "Jane Smith did work at Google, but as a Senior Software Engineer from 2018-2021, not as VP of Engineering. Her LinkedIn confirms a Stanford CS degree but shows a Master's, not a PhD.",
+      sources: ["https://linkedin.com/in/janesmith"],
+    },
+    {
+      claim: "NeuralCore Engine outperforms GPT-4 on all standard benchmarks by 40%",
+      verdict: "Almost certainly false",
+      analysis:
+        "No published benchmarks, no papers, no third-party evaluations. A 40% improvement over GPT-4 across ALL benchmarks would be front-page news in the AI community.",
+    },
+    {
+      claim: "Series B: $80M led by Sequoia Capital",
+      verdict: "Partially true",
+      analysis:
+        "Crunchbase shows a $45M Series B with Sequoia participating but not leading. The round was led by Index Ventures. The amount is inflated by nearly 2x.",
+      sources: ["https://crunchbase.com/organization/acme-ai"],
+    },
+    {
+      claim: "Official technology partner of Microsoft, AWS, and Google Cloud",
+      verdict: "Misleading",
+      analysis:
+        "They appear in the AWS Marketplace as a listed product, which any company can do. No evidence of official partnership programs with Microsoft or Google Cloud.",
+      sources: ["https://aws.amazon.com/marketplace"],
+    },
+    {
+      claim: "Winner of the 2025 Gartner Cool Vendor Award",
+      verdict: "False",
+      analysis:
+        "The 2025 Gartner Cool Vendor reports are publicly indexed. Acme AI does not appear in any of them. This award appears to be fabricated.",
+      sources: [
+        "https://gartner.com/en/research/methodologies/cool-vendors",
+      ],
+    },
+    {
+      claim: "400% YoY growth",
+      verdict: "Unverifiable, suspicious in context",
+      analysis:
+        "Given that other metrics appear inflated, this growth figure should be treated skeptically. Could be technically true if they grew from a very small base.",
+    },
+    {
+      claim: "Testimonials from Fortune 100 Company and Major Bank",
+      verdict: "Unverifiable",
+      analysis:
+        "Anonymous testimonials with no names attached. These could be real, fabricated, or heavily editorialized. Legitimate companies typically name their reference customers.",
+    },
+  ],
+  checksOut: [
+    "The company exists and has raised real funding (though amounts are inflated)",
+    "The founding team has legitimate tech backgrounds (though titles are inflated)",
+    "They have a real product listed on AWS Marketplace",
+  ],
+  redFlags: [
+    "Revenue claim ($100M ARR) contradicted by team size (47 people on LinkedIn)",
+    "Customer count (10,000) contradicted by review count (12 on G2)",
+    "Fabricated award (Gartner Cool Vendor)",
+    "Inflated funding numbers (nearly 2x actual)",
+    "Benchmark claims (40% better than GPT-4) with zero evidence",
+  ],
+};
 
 // -----------------------------------------------------------
 // /api/send-report
 // -----------------------------------------------------------
 
 export interface SendReportRequest {
-  report: string;
+  report: BSReport;
   email: string;
   url?: string;
 }
@@ -168,7 +247,7 @@ export const mockSendReportResponse: SendReportResponse = {
 // -----------------------------------------------------------
 
 export interface TransformRequest {
-  report: string;
+  report: BSReport;
   html: string;
   url: string;
 }
@@ -184,11 +263,6 @@ export interface TransformResponse {
 // - Add a banner at the top with overall assessment
 // - Add parenthetical annotations like "(not really)" or "(actually $45M)"
 // - Keep the rest of the page intact
-//
-// Example transformations:
-//   "$100M ARR" → "<span style='background:red;color:white;text-decoration:line-through'>$100M ARR</span> <span style='background:#222;color:#0f0'>(Actually unverifiable - only 47 employees on LinkedIn)</span>"
-//   "10,000+ enterprise customers" → same pattern
-//   Text that checks out → "<span style='background:#1a4d1a;color:white'>✓ Verified</span>"
 
 export const mockTransformResponse: TransformResponse = {
   html: `<!DOCTYPE html>
@@ -207,15 +281,39 @@ export const mockTransformResponse: TransformResponse = {
 };
 
 // -----------------------------------------------------------
-// MongoDB Report Document (for reference)
+// /api/events (SSE - Agent Activity Stream)
+// -----------------------------------------------------------
+// PERSON B / CLAUDE: This is a Server-Sent Events endpoint.
+// Connect with EventSource("/api/events") to get real-time
+// agent activity. Use this to show a live feed while the
+// agent investigates (e.g. "Searching for funding data...",
+// "Scraping crunchbase.com...").
+//
+// Event shape:
+// { type: string, message: string, timestamp: number }
+//
+// Types: "search" | "search-result" | "scrape" | "scrape-result"
+//        | "writing" | "done" | "connected"
+// -----------------------------------------------------------
+
+export interface AgentEventRecord {
+  type: string;
+  message: string;
+  timestamp: number;
+}
+
+// -----------------------------------------------------------
+// MongoDB Report Document (internal - not needed by frontend)
 // -----------------------------------------------------------
 
 export interface ReportDocument {
   _id?: string;
-  url?: string;
+  url: string | null;
   sourceType: "url" | "pdf";
-  markdown: string;
-  report: string;
-  transformedHtml?: string;
+  inputMarkdown: string | null;
+  events: AgentEventRecord[];
+  report: BSReport;
+  rawChatOutput: string;
   createdAt: Date;
+  completedAt: Date;
 }

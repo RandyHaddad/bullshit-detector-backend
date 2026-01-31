@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { reportsCollection } from "@/lib/mongodb";
 
 // GET /api/report?url=https://example.com
-// Returns cached report if one exists for this URL
+// Returns cached structured report if one exists for this URL
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   if (!url) {
@@ -24,6 +24,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     found: true,
     report: cached.report,
+    events: cached.events,
     createdAt: cached.createdAt,
   });
 }
