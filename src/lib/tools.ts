@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { firecrawl } from "./firecrawl";
+import { agentEvents } from "./events";
 
 export const scrapeTool = tool({
   description:
@@ -9,12 +10,19 @@ export const scrapeTool = tool({
     url: z.string().url().describe("The URL to scrape"),
   }),
   execute: async ({ url }) => {
+    agentEvents.push("scrape", `Scraping: ${url}`);
     const result = await firecrawl.scrape(url, {
       formats: ["markdown"],
       onlyMainContent: true,
       timeout: 30000,
     });
-    return { content: result.markdown ?? "" };
+    const content = result.markdown ?? "";
+    const host = new URL(url).hostname;
+    agentEvents.push(
+      "scrape-result",
+      `Scraped ${content.length.toLocaleString()} chars from ${host}`
+    );
+    return { content };
   },
 });
 
@@ -30,9 +38,12 @@ export const searchTool = tool({
       .describe("Number of results to return"),
   }),
   execute: async ({ query, limit }) => {
+    agentEvents.push("search", `Searching: "${query}"`);
     const result = await firecrawl.search(query, {
       limit: limit ?? 5,
     });
+    const count = result.web?.length ?? 0;
+    agentEvents.push("search-result", `Search returned ${count} results`);
     return result;
   },
 });
