@@ -313,7 +313,30 @@ export interface ReportDocument {
   inputMarkdown: string | null;
   events: AgentEventRecord[];
   report: BSReport;
+  replacements?: Replacement[];  // Cached find/replace pairs from UI agent
   rawChatOutput: string;
   createdAt: Date;
   completedAt: Date;
+}
+
+// -----------------------------------------------------------
+// /api/annotate (Extension Endpoint)
+// -----------------------------------------------------------
+// PERSON B / CLAUDE: The extension calls this with a URL.
+// Returns an array of find/replace pairs to apply to the page.
+// If the URL was analyzed before, returns cached results instantly.
+// -----------------------------------------------------------
+
+export interface Replacement {
+  find: string;     // Original text to find on the page
+  replace: string;  // Annotated replacement text
+}
+
+export interface AnnotateRequest {
+  url: string;
+}
+
+export interface AnnotateResponse {
+  replacements: Replacement[];
+  cached: boolean;
 }
