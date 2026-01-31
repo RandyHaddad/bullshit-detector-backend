@@ -9,9 +9,20 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.23",
+    "@ai-sdk/react": "^3.0.67",
+    "@mendable/firecrawl-js": "^4.12.0",
+    "@openrouter/ai-sdk-provider": "^2.1.1",
+    "ai": "^6.0.65",
+    "firecrawl-aisdk": "^0.8.1",
+    "mongodb": "^7.0.0",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0",
+    "reductoai": "^0.13.0",
+    "resend": "^6.9.1",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
