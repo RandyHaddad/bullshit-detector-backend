@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body {
+      width: 280px;
+      padding: 16px;
+      font-family: system-ui, sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      margin: 0;
+    }
+    h1 { font-size: 16px; margin: 0 0 12px 0; }
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #4ade80;
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled {
+      background: #333;
+      color: #666;
+      cursor: not-allowed;
+    }
+    #status {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #aaa;
+    }
+    .error { color: #f87171; }
+    .success { color: #4ade80; }
+  </style>
+</head>
+<body>
+  <h1>BS Detector</h1>
+  <button id="detect">Detect BS on this page</button>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
