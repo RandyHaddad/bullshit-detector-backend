@@ -15,6 +15,9 @@ import crypto from "crypto";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
+  const body = await req.json();
+  console.log("Received request body:", JSON.stringify(body, null, 2));
+  
   const {
     messages,
     url,
@@ -25,7 +28,10 @@ export async function POST(req: Request) {
     url?: string;
     sourceType?: "url" | "pdf";
     inputMarkdown?: string;
-  } = await req.json();
+  } = body;
+
+  console.log("Parsed messages:", messages);
+  console.log("Messages type:", typeof messages, Array.isArray(messages));
 
   const sessionId = crypto.randomUUID();
   agentEvents.startSession(sessionId);
@@ -35,7 +41,7 @@ export async function POST(req: Request) {
 
   const result = streamText({
     model: anthropic("claude-sonnet-4-20250514"),
-    messages: await convertToModelMessages(messages),
+    messages: messages,
     system: BS_DETECTION_SYSTEM_PROMPT,
     tools: {
       scrape: scrapeTool,
