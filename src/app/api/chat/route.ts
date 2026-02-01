@@ -5,7 +5,7 @@ import {
   convertToModelMessages,
 } from "ai";
 import { scrapeTool, searchTool, setActiveSession } from "@/lib/tools";
-import { openrouter } from "@/lib/openrouter";
+import { anthropic } from "@/lib/anthropic";
 import { BS_DETECTION_SYSTEM_PROMPT } from "@/lib/prompts";
 import { agentEvents } from "@/lib/events";
 import { reportsCollection } from "@/lib/mongodb";
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
   agentEvents.push("writing", "Agent started — analyzing claims...", sessionId);
 
   const result = streamText({
-    model: openrouter.chat("anthropic/claude-sonnet-4"),
+    model: anthropic("claude-sonnet-4-20250514"),
     messages: await convertToModelMessages(messages),
     system: BS_DETECTION_SYSTEM_PROMPT,
     tools: {

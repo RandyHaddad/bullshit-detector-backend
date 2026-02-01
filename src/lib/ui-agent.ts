@@ -1,44 +1,75 @@
-import { generateText } from "ai";
-import { openrouter } from "./openrouter";
-import type { BSReport, Replacement } from "./contracts";
+import { generateObject } from "ai";
+import { z } from "zod";
+import { anthropic } from "./anthropic";
+import type { BSReport } from "./contracts";
 
-const UI_AGENT_PROMPT = `You are a UI annotation agent. Given a BS detection report with claims and verdicts, generate a JSON array of find/replace pairs.
+const UI_AGENT_PROMPT = `You are given a BS detection analysis. Generate annotations for claims on the page.
 
-Rules:
-- "find" is the EXACT text as it appears on the original website (keep it short - just the claim phrase)
-- "replace" is the original text followed by a short inline annotation in parentheses
-- Use these prefixes in annotations:
-  - ❌ for false/fabricated claims
-  - ⚠️ for suspicious/unverifiable claims
-  - ✅ for verified claims
-- Keep annotations SHORT (under 15 words)
-- Only include claims where you can identify a specific findable string
-- Output ONLY valid JSON array, no markdown fences, no explanation
+For each claim, provide:
+- "find": the EXACT short text from the website to match
+- "annotation": a short, punchy counter-fact (NOT "unverifiable claim" — give the actual counter-evidence)
+- "type": one of "false", "suspicious", "verified", "fluff"
+- "details": optional array of specific counter-evidence items (tools, facts, links)
 
-Example output:
-[
-  { "find": "$100M ARR", "replace": "$100M ARR (❌ Unverifiable — only 47 employees on LinkedIn)" },
-  { "find": "Former VP of Engineering at Google", "replace": "Former VP of Engineering at Google (❌ Was actually Senior SWE)" },
-  { "find": "10,000+ enterprise customers", "replace": "10,000+ enterprise customers (❌ G2 shows only 12 reviews)" }
-]`;
+BE SPECIFIC with counter-evidence. Don't say "unverifiable" — say what you actually found or didn't find.
 
-export async function generateReplacements(report: BSReport): Promise<Replacement[]> {
+Examples:
+- Claim: "completely undetectable" → annotation: "Detectable by multiple tools", details: ["Zoom AI Companion flags it", "Otter.ai detects overlay apps", "IT admins can see the process"]
+- Claim: "fastest transcription" → annotation: "Slower than competitors in tests", details: ["Reddit users report 2-3s latency", "Whisper benchmarks show faster alternatives"]
+- Claim: "$100M ARR" → annotation: "Only 47 employees on LinkedIn", details: ["Crunchbase shows $45M raised", "G2 has 12 reviews"]
+- Claim: "world-class AI platform" → annotation: "Standard SaaS dashboard with API wrapper", details: []
+- Claim: "99.9% accuracy" → annotation: "No published benchmarks", details: ["No third-party evaluation found", "No methodology disclosed"]`;
+
+const replacementsSchema = z.object({
+  replacements: z.array(
+    z.object({
+      find: z.string().describe("Exact short text from the original website"),
+      annotation: z.string().describe("Short punchy counter-fact, not 'unverifiable'"),
+      type: z.enum(["false", "suspicious", "verified", "fluff"]).describe("Severity"),
+      details: z.array(z.string()).describe("Specific counter-evidence items").optional(),
+    })
+  ),
+});
+
+export interface RichReplacement {
+  find: string;
+  annotation: string;
+  type: "false" | "suspicious" | "verified" | "fluff";
+  details?: string[];
+}
+
+export async function generateReplacements(report: BSReport): Promise<RichReplacement[]> {
+  if (!report.claims || report.claims.length === 0) {
+    return [];
+  }
+
   const claimsSummary = report.claims
     .map((c) => `Claim: "${c.claim}"\nVerdict: ${c.verdict}\nAnalysis: ${c.analysis || "N/A"}`)
     .join("\n\n");
 
-  const { text } = await generateText({
-    model: openrouter.chat("anthropic/claude-sonnet-4"),
-    system: UI_AGENT_PROMPT,
-    prompt: claimsSummary,
-  });
+  return callUIAgent(claimsSummary);
+}
 
+export async function generateReplacementsFromRaw(rawAnalysis: string): Promise<RichReplacement[]> {
+  if (!rawAnalysis || rawAnalysis.trim().length === 0) {
+    return [];
+  }
+
+  return callUIAgent(rawAnalysis);
+}
+
+async function callUIAgent(prompt: string): Promise<RichReplacement[]> {
   try {
-    // Strip markdown fences if present
-    const cleaned = text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-    return JSON.parse(cleaned);
-  } catch {
-    console.error("Failed to parse UI agent output:", text);
+    const { object } = await generateObject({
+      model: anthropic("claude-sonnet-4-20250514"),
+      system: UI_AGENT_PROMPT,
+      prompt,
+      schema: replacementsSchema,
+    });
+
+    return object.replacements as RichReplacement[];
+  } catch (err) {
+    console.error("UI agent error:", err);
     return [];
   }
 }

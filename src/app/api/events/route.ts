@@ -5,6 +5,14 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const encoder = new TextEncoder();
 
+  let pollInterval: ReturnType<typeof setInterval>;
+  let heartbeatInterval: ReturnType<typeof setInterval>;
+
+  function cleanup() {
+    clearInterval(pollInterval);
+    clearInterval(heartbeatInterval);
+  }
+
   const stream = new ReadableStream({
     start(controller) {
       // Send connected message
@@ -14,10 +22,9 @@ export async function GET() {
         )
       );
 
-      let cursor = agentEvents.readFrom(0)[1]; // start at current end
+      let cursor = agentEvents.readFrom(0)[1];
 
-      // Poll for new events every 300ms
-      const interval = setInterval(() => {
+      pollInterval = setInterval(() => {
         try {
           const [events, newCursor] = agentEvents.readFrom(cursor);
           cursor = newCursor;
@@ -27,18 +34,20 @@ export async function GET() {
             );
           }
         } catch {
-          clearInterval(interval);
+          cleanup();
         }
       }, 300);
 
-      // Heartbeat every 15s
-      const heartbeat = setInterval(() => {
+      heartbeatInterval = setInterval(() => {
         try {
           controller.enqueue(encoder.encode(": heartbeat\n\n"));
         } catch {
-          clearInterval(heartbeat);
+          cleanup();
         }
       }, 15000);
+    },
+    cancel() {
+      cleanup();
     },
   });
 

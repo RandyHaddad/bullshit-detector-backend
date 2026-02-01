@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { reportsCollection } from "@/lib/mongodb";
 import { firecrawl } from "@/lib/firecrawl";
 import { generateText, stepCountIs } from "ai";
-import { openrouter } from "@/lib/openrouter";
+import { anthropic } from "@/lib/anthropic";
 import { BS_DETECTION_SYSTEM_PROMPT } from "@/lib/prompts";
 import { parseReport } from "@/lib/report-parser";
-import { generateReplacements } from "@/lib/ui-agent";
+import { generateReplacements, generateReplacementsFromRaw } from "@/lib/ui-agent";
 import { agentEvents } from "@/lib/events";
 import { scrapeTool, searchTool, setActiveSession } from "@/lib/tools";
 import crypto from "crypto";
@@ -38,21 +38,21 @@ export async function POST(req: Request) {
     { sort: { createdAt: -1 } }
   );
 
-  if (existingReport && existingReport.report?.claims?.length > 0) {
-    // Generate replacements from existing report
-    const replacements = await generateReplacements(existingReport.report);
+  if (existingReport) {
+    const replacements = existingReport.report?.claims?.length > 0
+      ? await generateReplacements(existingReport.report)
+      : await generateReplacementsFromRaw(existingReport.rawChatOutput || "");
 
-    // Cache the replacements
-    await reportsCollection.updateOne(
-      { _id: existingReport._id },
-      { $set: { replacements } }
-    );
-
-    return NextResponse.json({ replacements, cached: false });
+    if (replacements.length > 0) {
+      await reportsCollection.updateOne(
+        { _id: existingReport._id },
+        { $set: { replacements } }
+      );
+      return NextResponse.json({ replacements, cached: false });
+    }
   }
 
   // 3. Full pipeline: scrape → BS agent → parse → UI agent → cache
-  // Scrape the URL
   const scrapeResult = await firecrawl.scrape(url, {
     formats: ["markdown"],
     onlyMainContent: true,
@@ -60,14 +60,13 @@ export async function POST(req: Request) {
   });
   const markdown = scrapeResult.markdown ?? "";
 
-  // Run BS agent (non-streaming since extension just waits)
   const sessionId = crypto.randomUUID();
   agentEvents.startSession(sessionId);
   setActiveSession(sessionId);
   agentEvents.push("writing", "Agent started — analyzing claims...", sessionId);
 
   const agentResult = await generateText({
-    model: openrouter.chat("anthropic/claude-sonnet-4"),
+    model: anthropic("claude-sonnet-4-20250514"),
     system: BS_DETECTION_SYSTEM_PROMPT,
     prompt: `Analyze this for BS:\n\n${markdown}`,
     tools: {
@@ -82,10 +81,11 @@ export async function POST(req: Request) {
   const fullText = agentResult.steps.map((s) => s.text).join("");
   const structuredReport = parseReport(fullText);
 
-  // Generate replacements
-  const replacements = await generateReplacements(structuredReport);
+  const uiAgentInput = `## Original Page Content:\n${markdown}\n\n## BS Analysis:\n${fullText}`;
+  const replacements = structuredReport.claims.length > 0
+    ? await generateReplacements(structuredReport)
+    : await generateReplacementsFromRaw(uiAgentInput);
 
-  // Save everything to MongoDB
   await reportsCollection.insertOne({
     url,
     sourceType: "url",
