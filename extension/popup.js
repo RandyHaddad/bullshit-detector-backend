@@ -1,7 +1,11 @@
 const API_BASE = "http://localhost:3000";
+let activeTabId = null;
+let isShowingAnnotations = false;
+let lastReplacements = null;
 
 document.getElementById("detect").addEventListener("click", async () => {
   const btn = document.getElementById("detect");
+  const toggle = document.getElementById("toggle");
   const status = document.getElementById("status");
 
   btn.disabled = true;
@@ -10,12 +14,24 @@ document.getElementById("detect").addEventListener("click", async () => {
 
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    activeTabId = tab.id;
     const url = tab.url;
+    const mode = document.getElementById("mode").value;
+
+    // Save original page HTML before we touch anything
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        if (!document.body.dataset.bsOriginal) {
+          document.body.dataset.bsOriginal = document.body.innerHTML;
+        }
+      },
+    });
 
     const res = await fetch(`${API_BASE}/api/annotate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, mode }),
     });
 
     if (!res.ok) throw new Error("Backend error");
@@ -29,20 +45,68 @@ document.getElementById("detect").addEventListener("click", async () => {
       return;
     }
 
+    lastReplacements = replacements;
+
+    // Apply annotations immediately
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: applyReplacements,
       args: [replacements],
     });
 
+    isShowingAnnotations = true;
+
+    // Hide detect, show toggle
+    btn.style.display = "none";
+    document.getElementById("mode").style.display = "none";
+    toggle.style.display = "block";
+    toggle.textContent = "Show Original";
+    toggle.style.background = "#333";
+    toggle.style.color = "#e0e0e0";
+
     status.textContent = `${replacements.length} claims annotated${cached ? " (cached)" : ""}`;
     status.className = "success";
   } catch (err) {
     status.textContent = "Error: " + err.message;
     status.className = "error";
+    btn.disabled = false;
+  }
+});
+
+document.getElementById("toggle").addEventListener("click", async () => {
+  if (!activeTabId) return;
+  const toggle = document.getElementById("toggle");
+
+  if (isShowingAnnotations) {
+    // Show original
+    await chrome.scripting.executeScript({
+      target: { tabId: activeTabId },
+      func: () => {
+        if (document.body.dataset.bsOriginal) {
+          document.body.innerHTML = document.body.dataset.bsOriginal;
+          document.body.style.marginTop = "0px";
+        }
+      },
+    });
+    toggle.textContent = "Show BS Annotations";
+    toggle.style.background = "#4ade80";
+    toggle.style.color = "#000";
+  } else {
+    // Show annotations
+    await chrome.scripting.executeScript({
+      target: { tabId: activeTabId },
+      func: () => {
+        if (document.body.dataset.bsAnnotated) {
+          document.body.innerHTML = document.body.dataset.bsAnnotated;
+        }
+      },
+    });
+    toggle.textContent = "Show Original";
+    toggle.style.background = "#333";
+    toggle.style.color = "#e0e0e0";
   }
 
-  btn.disabled = false;
+  isShowingAnnotations = !isShowingAnnotations;
 });
 
 function applyReplacements(replacements) {
@@ -69,13 +133,11 @@ function applyReplacements(replacements) {
     const cfg = TYPE_CONFIG[r.type] || TYPE_CONFIG.suspicious;
 
     for (const node of textNodes) {
-      if (!node.nodeValue || !node.nodeValue.includes(r.find)) continue;
+      if (!node.parentNode || !node.nodeValue || !node.nodeValue.includes(r.find)) continue;
 
-      // Build details list
       let detailsHtml = "";
       if (r.details && r.details.length > 0) {
         const items = r.details.map(d => {
-          // Auto-link URLs in details
           const linked = d.replace(/(https?:\/\/[^\s,)]+)/g, '<a href="$1" target="_blank" style="color:' + cfg.color + ';text-decoration:underline;">$1</a>');
           return `<li style="margin:2px 0;padding-left:4px;">${linked}</li>`;
         }).join("");
@@ -87,7 +149,7 @@ function applyReplacements(replacements) {
         r.find,
         `<span style="position:relative;display:inline;">`
           + `<span style="text-decoration:line-through;text-decoration-color:${cfg.color};opacity:0.5;">${r.find}</span>`
-          + `<span style="display:inline-block;vertical-align:top;margin-left:6px;padding:4px 8px;background:${cfg.bg};border:1px solid ${cfg.border};border-radius:4px;font-size:0.85em;line-height:1.4;max-width:320px;color:${cfg.color};font-family:inherit;">`
+          + `<span style="display:inline-block;vertical-align:top;margin-left:6px;padding:4px 8px;background:${cfg.bg};border:1px solid ${cfg.border};border-radius:4px;font-size:0.85em;line-height:1.4;max-width:320px;color:${cfg.color};font-family:inherit;text-align:left;">`
             + `${cfg.emoji} ${r.annotation}`
             + detailsHtml
           + `</span>`
@@ -98,6 +160,9 @@ function applyReplacements(replacements) {
       count++;
     }
   }
+
+  // Save annotated state for toggling
+  document.body.dataset.bsAnnotated = document.body.innerHTML;
 
   // Banner
   const banner = document.createElement("div");

@@ -38,7 +38,7 @@ export interface RichReplacement {
   details?: string[];
 }
 
-export async function generateReplacements(report: BSReport): Promise<RichReplacement[]> {
+export async function generateReplacements(report: BSReport, modelId?: string): Promise<RichReplacement[]> {
   if (!report.claims || report.claims.length === 0) {
     return [];
   }
@@ -47,21 +47,21 @@ export async function generateReplacements(report: BSReport): Promise<RichReplac
     .map((c) => `Claim: "${c.claim}"\nVerdict: ${c.verdict}\nAnalysis: ${c.analysis || "N/A"}`)
     .join("\n\n");
 
-  return callUIAgent(claimsSummary);
+  return callUIAgent(claimsSummary, modelId);
 }
 
-export async function generateReplacementsFromRaw(rawAnalysis: string): Promise<RichReplacement[]> {
+export async function generateReplacementsFromRaw(rawAnalysis: string, modelId?: string): Promise<RichReplacement[]> {
   if (!rawAnalysis || rawAnalysis.trim().length === 0) {
     return [];
   }
 
-  return callUIAgent(rawAnalysis);
+  return callUIAgent(rawAnalysis, modelId);
 }
 
-async function callUIAgent(prompt: string): Promise<RichReplacement[]> {
+async function callUIAgent(prompt: string, modelId?: string): Promise<RichReplacement[]> {
   try {
     const { object } = await generateObject({
-      model: anthropic("claude-sonnet-4-20250514"),
+      model: anthropic(modelId || "claude-sonnet-4-20250514"),
       system: UI_AGENT_PROMPT,
       prompt,
       schema: replacementsSchema,

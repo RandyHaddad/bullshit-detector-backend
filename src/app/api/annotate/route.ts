@@ -13,7 +13,11 @@ import crypto from "crypto";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
-  const { url }: { url: string } = await req.json();
+  const { url, mode }: { url: string; mode?: string } = await req.json();
+
+  const modelId = mode === "fast"
+    ? "claude-haiku-3-5-20241022"
+    : "claude-sonnet-4-20250514";
 
   if (!url) {
     return NextResponse.json({ error: "Missing 'url'" }, { status: 400 });
@@ -40,8 +44,11 @@ export async function POST(req: Request) {
 
   if (existingReport) {
     const replacements = existingReport.report?.claims?.length > 0
-      ? await generateReplacements(existingReport.report)
-      : await generateReplacementsFromRaw(existingReport.rawChatOutput || "");
+      ? await generateReplacements(existingReport.report, modelId)
+      : await generateReplacementsFromRaw(
+          `## Original Page Content:\n${existingReport.inputMarkdown || ""}\n\n## BS Analysis:\n${existingReport.rawChatOutput || ""}`,
+          modelId
+        );
 
     if (replacements.length > 0) {
       await reportsCollection.updateOne(
@@ -66,7 +73,7 @@ export async function POST(req: Request) {
   agentEvents.push("writing", "Agent started — analyzing claims...", sessionId);
 
   const agentResult = await generateText({
-    model: anthropic("claude-sonnet-4-20250514"),
+    model: anthropic(modelId),
     system: BS_DETECTION_SYSTEM_PROMPT,
     prompt: `Analyze this for BS:\n\n${markdown}`,
     tools: {
@@ -83,8 +90,8 @@ export async function POST(req: Request) {
 
   const uiAgentInput = `## Original Page Content:\n${markdown}\n\n## BS Analysis:\n${fullText}`;
   const replacements = structuredReport.claims.length > 0
-    ? await generateReplacements(structuredReport)
-    : await generateReplacementsFromRaw(uiAgentInput);
+    ? await generateReplacements(structuredReport, modelId)
+    : await generateReplacementsFromRaw(uiAgentInput, modelId);
 
   await reportsCollection.insertOne({
     url,
