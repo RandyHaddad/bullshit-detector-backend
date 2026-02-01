@@ -75,7 +75,8 @@ export function ChatPanel({
             ))
           )}
         </AnimatePresence>
-        {isLoading && (
+        {/* Only show typing indicator for follow-up questions, not initial analysis */}
+        {isLoading && followUpMessages.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

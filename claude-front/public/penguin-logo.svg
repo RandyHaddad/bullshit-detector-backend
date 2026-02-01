@@ -1,0 +1,60 @@
+<svg width="800" height="800" viewBox="0 0 800 800" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer circle -->
+  <circle cx="400" cy="340" r="280" stroke="#1F2937" stroke-width="20" fill="none"/>
+  
+  <!-- Mountains -->
+  <g opacity="0.7">
+    <!-- Back mountain -->
+    <path d="M 520 340 L 620 200 L 680 250 L 720 200 L 750 340 Z" fill="#9CA3AF"/>
+    <!-- Middle mountain -->
+    <path d="M 480 340 L 580 180 L 640 230 L 680 180 L 720 340 Z" fill="#6B7280"/>
+    <!-- Front mountain with snow -->
+    <path d="M 440 340 L 540 160 L 600 210 L 640 160 L 680 340 Z" fill="#4B5563"/>
+    <path d="M 540 160 L 520 190 L 560 210 L 580 180 Z" fill="white"/>
+    <path d="M 600 210 L 580 240 L 620 250 L 640 220 Z" fill="white"/>
+  </g>
+  
+  <!-- Ground line -->
+  <path d="M 150 340 Q 300 320 450 340 T 650 340" stroke="#1F2937" stroke-width="12" fill="none"/>
+  
+  <!-- Penguin body (main) -->
+  <ellipse cx="280" cy="350" rx="85" ry="130" fill="#1F2937"/>
+  
+  <!-- Penguin belly (white) -->
+  <ellipse cx="280" cy="370" rx="55" ry="100" fill="white"/>
+  
+  <!-- Penguin head -->
+  <ellipse cx="280" cy="240" rx="70" ry="75" fill="#1F2937"/>
+  
+  <!-- Penguin white face -->
+  <ellipse cx="295" cy="250" rx="35" ry="45" fill="white"/>
+  
+  <!-- Penguin eye -->
+  <circle cx="300" cy="240" r="8" fill="#1F2937"/>
+  <circle cx="303" cy="237" r="3" fill="white"/>
+  
+  <!-- Penguin beak -->
+  <path d="M 320 250 L 345 255 L 320 260 Z" fill="#F59E0B"/>
+  
+  <!-- Left wing -->
+  <ellipse cx="210" cy="350" rx="25" ry="80" fill="#1F2937" transform="rotate(-20 210 350)"/>
+  <ellipse cx="210" cy="360" rx="15" ry="60" fill="#374151" transform="rotate(-20 210 360)"/>
+  
+  <!-- Right wing -->
+  <ellipse cx="350" cy="360" rx="25" ry="80" fill="#1F2937" transform="rotate(25 350 360)"/>
+  <ellipse cx="350" cy="370" rx="15" ry="60" fill="#374151" transform="rotate(25 350 370)"/>
+  
+  <!-- Left foot -->
+  <ellipse cx="250" cy="485" rx="30" ry="15" fill="#F59E0B"/>
+  <path d="M 250 485 L 240 500 M 250 485 L 250 500 M 250 485 L 260 500" stroke="#D97706" stroke-width="3"/>
+  
+  <!-- Right foot -->
+  <ellipse cx="310" cy="490" rx="30" ry="15" fill="#F59E0B"/>
+  <path d="M 310 490 L 300 505 M 310 490 L 310 505 M 310 490 L 320 505" stroke="#D97706" stroke-width="3"/>
+  
+  <!-- Shadow under penguin -->
+  <ellipse cx="280" cy="495" rx="70" ry="10" fill="#1F2937" opacity="0.2"/>
+  
+  <!-- Text: PENGUIN.AI -->
+  <text x="400" y="700" font-family="Arial, sans-serif" font-size="80" font-weight="bold" fill="#1F2937" text-anchor="middle">PENGUIN.AI</text>
+</svg>

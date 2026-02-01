@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND_URL = 'http://localhost:3006/api';
+const BACKEND_URL = 'http://localhost:3000/api';
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,19 +18,17 @@ export async function POST(request: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-    } else if (contentType.includes('multipart/form-data')) {
+    } else {
       // Handle PDF submission - forward the form data
       const formData = await request.formData();
+      
+      console.log(`Forwarding FormData to backend: ${BACKEND_URL}/parse`);
       
       backendResponse = await fetch(`${BACKEND_URL}/parse`, {
         method: 'POST',
         body: formData,
+        // Don't set Content-Type header - let fetch handle it automatically for FormData
       });
-    } else {
-      return NextResponse.json(
-        { error: 'Unsupported content type' },
-        { status: 400 }
-      );
     }
     
     if (!backendResponse.ok) {

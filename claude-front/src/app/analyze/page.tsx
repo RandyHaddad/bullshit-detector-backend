@@ -8,7 +8,6 @@ import { ChatPanel } from '@/components/ChatPanel';
 import { ActionBar } from '@/components/ActionBar';
 import { AnalysisLoader } from '@/components/AnalysisLoader';
 import {
-  mockSendReportResponse,
   mockTransformResponse,
   type ParseResponse,
 } from '@/lib/contracts';
@@ -81,7 +80,8 @@ export default function AnalyzePage() {
       setMessages(prev => [...prev, assistantMessage]);
 
       if (reader) {
-        let fullContent = '';
+        let fullContent = ''; // For chat messages (includes tool info)
+        let reportContent = ''; // For report display (only AI text)
         
         while (true) {
           const { done, value } = await reader.read();
@@ -96,9 +96,10 @@ export default function AnalyzePage() {
               try {
                 const data = JSON.parse(line.slice(6));
                 
-                // Handle text-delta events from AI SDK
+                // Handle text-delta events from AI SDK - this is the actual analysis text
                 if (data.type === 'text-delta' && data.delta) {
                   fullContent += data.delta;
+                  reportContent += data.delta;
                   
                   // Update the assistant message content
                   setMessages(prev => {
@@ -110,13 +111,13 @@ export default function AnalyzePage() {
                     return updated;
                   });
                   
-                  // Update report if this is the initial analysis
+                  // Update report with only the AI's actual text (no tool metadata)
                   if (isInitial) {
-                    setReport(fullContent);
+                    setReport(reportContent);
                   }
                 }
                 
-                // Handle tool calls - show what the AI is doing
+                // Handle tool calls - show in chat messages but not in main report
                 if (data.type === 'tool-input-available') {
                   let toolInfo = '\n\n';
                   
@@ -130,6 +131,7 @@ export default function AnalyzePage() {
                   
                   fullContent += toolInfo;
                   
+                  // Only update chat messages with tool info, not the report
                   setMessages(prev => {
                     const updated = [...prev];
                     const lastIdx = updated.length - 1;
@@ -138,13 +140,9 @@ export default function AnalyzePage() {
                     }
                     return updated;
                   });
-                  
-                  if (isInitial) {
-                    setReport(fullContent);
-                  }
                 }
                 
-                // Handle tool output - show results
+                // Handle tool output - show in chat but not in report
                 if (data.type === 'tool-output-available') {
                   let resultInfo = '';
                   
@@ -164,13 +162,9 @@ export default function AnalyzePage() {
                     }
                     return updated;
                   });
-                  
-                  if (isInitial) {
-                    setReport(fullContent);
-                  }
                 }
                 
-                // Handle tool errors
+                // Handle tool errors - show in chat but not in report
                 if (data.type === 'tool-output-error') {
                   const errorShort = data.errorText?.includes('blocklisted') 
                     ? '❌ Site blocked (Terms of Service restriction)\n'
@@ -186,10 +180,6 @@ export default function AnalyzePage() {
                     }
                     return updated;
                   });
-                  
-                  if (isInitial) {
-                    setReport(fullContent);
-                  }
                 }
                 
               } catch {
@@ -201,7 +191,7 @@ export default function AnalyzePage() {
         
         // Final update
         if (isInitial) {
-          setReport(fullContent);
+          setReport(reportContent);
           setIsAnalyzing(false);
         }
       }
@@ -271,16 +261,13 @@ export default function AnalyzePage() {
   };
 
   const handleSendEmail = async (email: string) => {
-    // TODO: Replace with actual API call
-    // const res = await fetch('/api/send-report', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({ report, email, url: parseData?.url }),
-    // });
-    // const data = await res.json();
-
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    const data = mockSendReportResponse;
+    const res = await fetch('/api/send-report', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ report, email, url: parseData?.url }),
+    });
+    
+    const data = await res.json();
 
     if (!data.success) {
       throw new Error(data.error || 'Failed to send email');

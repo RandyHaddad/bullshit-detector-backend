@@ -177,18 +177,20 @@ This company exists and has a real product, but their marketing significantly ov
 // ============================================================
 
 export interface SendReportRequest {
-  report: string;
+  report: string;  // Markdown report from chat
   email: string;
   url?: string;
 }
 
 export interface SendReportResponse {
   success: boolean;
+  messageId?: string;
   error?: string;
 }
 
 export const mockSendReportResponse: SendReportResponse = {
   success: true,
+  messageId: 'mock-123',
 };
 
 // ============================================================
@@ -272,4 +274,25 @@ export interface Claim {
   summary: string;
   evidence: string[];
   sources: { label: string; url: string }[];
+}
+
+// ============================================================
+// BS Report Types (for backend integration)
+// ============================================================
+
+/** A single claim that was investigated (backend format) */
+export interface BackendClaim {
+  claim: string;
+  verdict: string;
+  analysis?: string;
+  sources?: string[];
+}
+
+/** The full structured BS report (backend format) */
+export interface BSReport {
+  overallAssessment: string;
+  claims: BackendClaim[];
+  checksOut: string[];
+  redFlags: string[];
+  rawMarkdown?: string;
 }
