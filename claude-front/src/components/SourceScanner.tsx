@@ -148,7 +148,7 @@ export function SourceScanner() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cards, setCards] = useState<SourceCard[]>([]);
   const positionRef = useRef(0);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
 
   // Initialize cards
   useEffect(() => {
